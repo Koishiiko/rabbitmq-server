@@ -62,6 +62,8 @@ register() ->
                           {policy_merge_strategy, <<"delivery-limit">>}]],
     ok.
 
+-spec validate_policy([{binary(), term()}]) -> rabbit_policy_validator:validate_results().
+
 validate_policy(Terms) ->
     lists:foldl(fun ({Key, Value}, ok) -> validate_policy0(Key, Value);
                     (_, Error)         -> Error
