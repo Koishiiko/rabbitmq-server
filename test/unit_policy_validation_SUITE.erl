@@ -37,7 +37,10 @@ groups() ->
           expires,
           max_length,
           max_length_bytes,
-          max_in_memory_length
+          max_in_memory_length,
+          delivery_limit,
+          classic_queue_lazy_mode,
+          length_limit_overflow_mode
         ]}
     ].
 
@@ -69,57 +72,50 @@ max_length_bytes(_Config) ->
 max_in_memory_length(_Config) ->
     requires_non_negative_integer_value(<<"max-in-memory-bytes">>).
 
+delivery_limit(_Config) ->
+    requires_non_negative_integer_value(<<"delivery-limit">>).
+
+classic_queue_lazy_mode(_Config) ->
+    test_valid_and_invalid_values(<<"queue-mode">>,
+        %% valid values
+        [<<"default">>, <<"lazy">>],
+        %% invalid values
+        [<<"unknown">>, <<"queue">>, <<"mode">>]).
+
+length_limit_overflow_mode(_Config) ->
+    test_valid_and_invalid_values(<<"overflow">>,
+        %% valid values
+        [<<"drop-head">>, <<"reject-publish">>, <<"reject-publish-dlx">>],
+        %% invalid values
+        [<<"unknown">>, <<"publish">>, <<"overflow">>, <<"mode">>]).
+
 %%
 %% Implementation
 %%
 
+test_valid_and_invalid_values(Key, ValidValues, InvalidValues) ->
+    [begin
+         ?assertEqual(ok, rabbit_policies:validate_policy([
+            {Key, Val}
+         ]))
+     end || Val <- ValidValues],
+    [begin
+         ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
+            {Key, Val}
+         ]))
+     end || Val <- InvalidValues].
+
 requires_binary_value(Key) ->
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, <<"a.binary">>}
-    ])),
-    
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, 123}
-    ])).
+    test_valid_and_invalid_values(Key,
+        [<<"a.binary">>, <<"b.binary">>],
+        [1, rabbit]).
 
 requires_positive_integer_value(Key) ->
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, 1}
-    ])),
-    
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, 1000}
-    ])),
-
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, 0}
-    ])),
-    
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, -1}
-    ])),
-    
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, <<"a.binary">>}
-    ])).
+    test_valid_and_invalid_values(Key,
+        [1, 1000],
+        [0, -1, <<"a.binary">>]).
 
 requires_non_negative_integer_value(Key) ->
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, 0}
-    ])),
-    
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, 1}
-    ])),
-    
-    ?assertEqual(ok, rabbit_policies:validate_policy([
-        {Key, 1000}
-    ])),
-
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, -1}
-    ])),
-    
-    ?assertMatch({error, _, _}, rabbit_policies:validate_policy([
-        {Key, <<"a.binary">>}
-    ])).
+    test_valid_and_invalid_values(Key,
+        [0, 1, 1000],
+        [-1000, -1, <<"a.binary">>]).
